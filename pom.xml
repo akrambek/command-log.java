@@ -43,10 +43,9 @@
     <checkstyle.config.location>src/conf/checkstyle/configuration.xml</checkstyle.config.location>
     <checkstyle.suppressions.location>src/conf/checkstyle/suppressions.xml</checkstyle.suppressions.location>
 
-    <nukleus.version>0.11</nukleus.version>
-    <nukleus.plugin.version>0.13</nukleus.plugin.version>
-    <nukleus.spec.version>0.10</nukleus.spec.version>
-    <nukleus.http2.spec.version>0.28</nukleus.http2.spec.version>
+    <nukleus.version>0.17</nukleus.version>
+    <nukleus.plugin.version>0.25</nukleus.plugin.version>
+    <nukleus.http.spec.version>0.45</nukleus.http.spec.version>
 
     <jacoco.coverage.ratio>1.00</jacoco.coverage.ratio>
     <jacoco.missed.count>0</jacoco.missed.count>
@@ -55,14 +54,8 @@
   <dependencies>
     <dependency>
       <groupId>org.reaktivity</groupId>
-      <artifactId>nukleus.spec</artifactId>
-      <version>${nukleus.spec.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.reaktivity</groupId>
-      <artifactId>nukleus-http2.spec</artifactId>
-      <version>${nukleus.http2.spec.version}</version>
+      <artifactId>nukleus-http.spec</artifactId>
+      <version>${nukleus.http.spec.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -84,7 +77,7 @@
         <artifactId>nukleus-maven-plugin</artifactId>
         <version>${nukleus.plugin.version}</version>
         <configuration>
-          <scopeNames>core::stream http::stream http2::stream</scopeNames>
+          <scopeNames>core http::stream</scopeNames>
           <packageName>org.reaktivity.command.log.internal.types</packageName>
         </configuration>
         <executions>

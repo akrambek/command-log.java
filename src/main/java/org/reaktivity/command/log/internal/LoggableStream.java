@@ -25,7 +25,6 @@ import org.reaktivity.command.log.internal.types.stream.AbortFW;
 import org.reaktivity.command.log.internal.types.stream.BeginFW;
 import org.reaktivity.command.log.internal.types.stream.DataFW;
 import org.reaktivity.command.log.internal.types.stream.EndFW;
-import org.reaktivity.command.log.internal.types.stream.Http2DataExFW;
 import org.reaktivity.command.log.internal.types.stream.HttpBeginExFW;
 import org.reaktivity.command.log.internal.types.stream.ResetFW;
 import org.reaktivity.command.log.internal.types.stream.WindowFW;
@@ -41,7 +40,6 @@ public final class LoggableStream implements AutoCloseable
     private final WindowFW windowRO = new WindowFW();
 
     private final HttpBeginExFW httpBeginExRO = new HttpBeginExFW();
-    private final Http2DataExFW http2DataExRO = new Http2DataExFW();
 
     private final String streamFormat;
     private final String throttleFormat;
@@ -121,13 +119,12 @@ public final class LoggableStream implements AutoCloseable
         out.printf(streamFormat, streamId,
                    format("BEGIN \"%s\" [0x%016x] [0x%016x] [0x%016x]", sourceName, sourceRef, correlationId, authorization));
 
-        if (verbose && (sourceName.startsWith("http") || sourceName.equals("auth-jwt")))
+        if (verbose && sourceName.startsWith("http"))
         {
             HttpBeginExFW httpBeginEx = httpBeginExRO.wrap(extension.buffer(), extension.offset(), extension.limit());
 
             httpBeginEx.headers()
                        .forEach(h -> out.printf("%s: %s\n", h.name().asString(), h.value().asString()));
-
         }
     }
 
@@ -136,20 +133,10 @@ public final class LoggableStream implements AutoCloseable
     {
         final long streamId = data.streamId();
         final int length = data.length();
+        final int padding = data.padding();
         final long authorization = data.authorization();
 
-        if (data.extension().sizeof() > 0 && streamFormat.startsWith("[http-cache"))
-        {
-                out.printf(format(streamFormat, streamId, format("DATA [%d] [0x%016x]", length, authorization)));
-                OctetsFW extension = data.extension();
-                http2DataExRO.wrap(extension.buffer(), extension.offset(), extension.offset() + extension.sizeof());
-                http2DataExRO.headers().forEach(
-                        h -> out.printf("\tpush-promise\t%s: %s\n", h.name().asString(), h.value().asString()));
-        }
-        else
-        {
-            out.printf(format(streamFormat, streamId, format("DATA [%d] [0x%016x]", length, authorization)));
-        }
+        out.printf(format(streamFormat, streamId, format("DATA [%d] [%d] [0x%016x]", length, padding, authorization)));
     }
 
     private void handleEnd(
@@ -201,9 +188,10 @@ public final class LoggableStream implements AutoCloseable
         final WindowFW window)
     {
         final long streamId = window.streamId();
-        final int update = window.update();
-        final int frames = window.frames();
+        final int credit = window.credit();
+        final int padding = window.padding();
+        final long groupId = window.groupId();
 
-        out.printf(format(throttleFormat, streamId, format("WINDOW [%d] [%d]", update, frames)));
+        out.printf(format(throttleFormat, streamId, format("WINDOW [%d] [%d] [%d]", credit, padding, groupId)));
     }
 }

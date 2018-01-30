@@ -17,12 +17,7 @@ package org.reaktivity.command.log.internal;
 
 import static org.apache.commons.cli.Option.builder;
 
-import java.io.File;
-import java.io.PrintStream;
-import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Properties;
-import java.util.function.Predicate;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -39,39 +34,15 @@ public final class LogCommand
 
         Options options = new Options();
         options.addOption(builder("h").longOpt("help").desc("print this message").build());
-        options.addOption(builder("t").hasArg().required(false).longOpt("type").desc("streams* | counters").build());
+        options.addOption(builder("t").hasArg()
+                                      .required(false)
+                                      .longOpt("type")
+                                      .desc("streams* | streams-nowait | counters | queues | routes")
+                                      .build());
         options.addOption(builder("d").longOpt("directory").hasArg().desc("configuration directory").build());
         options.addOption(builder("v").longOpt("verbose").desc("verbose output").build());
-        options.addOption(builder("of").hasArg().longOpt("output-file").desc("direct output to file").build());
-        options.addOption(builder("n").hasArg().longOpt("nukleus")
-                .desc("comma seperated nukleus to process").build());
 
         CommandLine cmdline = parser.parse(options, args);
-
-        Predicate<? super Path> matchNukleus;
-        if (cmdline.hasOption("n"))
-        {
-            String[] nukleus = cmdline.getOptionValues("n");
-            matchNukleus = f ->
-            {
-                Path nukleusFile = f.getName(f.getNameCount() - 2);
-                return Arrays.stream(nukleus).anyMatch(n -> n.equals(nukleusFile.toFile().getName()));
-            };
-        }
-        else
-        {
-            matchNukleus = f -> true;
-        }
-
-        Logger out;
-        if (cmdline.hasOption("of"))
-        {
-            out = new PrintStream(new File(cmdline.getOptionValue("of")))::printf;
-        }
-        else
-        {
-            out = System.out::printf;
-        }
 
         if (cmdline.hasOption("help") || !cmdline.hasOption("directory"))
         {
@@ -89,13 +60,21 @@ public final class LogCommand
 
             final Configuration config = new LogCommandConfiguration(properties);
 
-            if ("streams".equals(type))
+            if ("streams".equals(type) || "streams-nowait".equals(type))
             {
-                new LogStreamsCommand(config, out, verbose, matchNukleus).invoke();
+                new LogStreamsCommand(config, System.out::printf, verbose, "streams".equals(type)).invoke();
             }
             else if ("counters".equals(type))
             {
-                new LogCountersCommand(config, out, verbose, matchNukleus).invoke();
+                new LogCountersCommand(config, System.out::printf, verbose).invoke();
+            }
+            else if ("queues".equals(type))
+            {
+                new LogQueueDepthCommand(config, System.out::printf, verbose).invoke();
+            }
+            else if ("routes".equals(type))
+            {
+                new LogRoutesCommand(config, System.out::printf, verbose).invoke();
             }
         }
     }

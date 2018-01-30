@@ -21,7 +21,6 @@ import static java.util.stream.Collectors.toList;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -45,22 +44,22 @@ public final class LogStreamsCommand
     private final boolean verbose;
     private final long streamsCapacity;
     private final long throttleCapacity;
+    private final boolean continuous;
     private final Logger out;
 
-    private final Predicate<? super Path> matchNukleus;
 
     LogStreamsCommand(
         Configuration config,
         Logger out,
         boolean verbose,
-        Predicate<? super Path> matchNukleus)
+        boolean continuous)
     {
         this.directory = config.directory();
         this.verbose = verbose;
         this.streamsCapacity = config.streamsBufferCapacity();
         this.throttleCapacity = config.throttleBufferCapacity();
+        this.continuous = continuous;
         this.out = out;
-        this.matchNukleus = matchNukleus;
     }
 
     private boolean isStreamsFile(
@@ -101,7 +100,6 @@ public final class LogStreamsCommand
         try (Stream<Path> files = Files.walk(directory, 3))
         {
             LoggableStream[] loggables = files.filter(this::isStreamsFile)
-                 .filter(matchNukleus)
                  .peek(this::onDiscovered)
                  .map(this::newLoggable)
                  .collect(toList())
@@ -109,9 +107,12 @@ public final class LogStreamsCommand
 
             final IdleStrategy idleStrategy = new BackoffIdleStrategy(MAX_SPINS, MAX_YIELDS, MIN_PARK_NS, MAX_PARK_NS);
 
-            while (true)
+            final int exitWorkCount = continuous ? -1 : 0;
+
+            int workCount;
+            do
             {
-                int workCount = 0;
+                workCount = 0;
 
                 for (int i=0; i < loggables.length; i++)
                 {
@@ -119,7 +120,8 @@ public final class LogStreamsCommand
                 }
 
                 idleStrategy.idle(workCount);
-            }
+
+            } while (workCount != exitWorkCount);
         }
         catch (IOException ex)
         {
