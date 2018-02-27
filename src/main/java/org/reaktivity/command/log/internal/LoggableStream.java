@@ -21,14 +21,9 @@ import org.agrona.MutableDirectBuffer;
 import org.reaktivity.command.log.internal.layouts.StreamsLayout;
 import org.reaktivity.command.log.internal.spy.RingBufferSpy;
 import org.reaktivity.command.log.internal.types.OctetsFW;
-import org.reaktivity.command.log.internal.types.stream.AbortFW;
-import org.reaktivity.command.log.internal.types.stream.BeginFW;
-import org.reaktivity.command.log.internal.types.stream.DataFW;
-import org.reaktivity.command.log.internal.types.stream.EndFW;
-import org.reaktivity.command.log.internal.types.stream.HttpBeginExFW;
-import org.reaktivity.command.log.internal.types.stream.ResetFW;
-import org.reaktivity.command.log.internal.types.stream.WindowFW;
+import org.reaktivity.command.log.internal.types.stream.*;
 
+import java.text.SimpleDateFormat;
 import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
@@ -43,6 +38,7 @@ public final class LoggableStream implements AutoCloseable
     private final WindowFW windowRO = new WindowFW();
 
     private final HttpBeginExFW httpBeginExRO = new HttpBeginExFW();
+    private final AuthorizedFrameFW authFrameRO = new AuthorizedFrameFW();
 
     private final String streamFormat;
     private final String throttleFormat;
@@ -50,6 +46,7 @@ public final class LoggableStream implements AutoCloseable
     private final StreamsLayout layout;
     private final RingBufferSpy streamsBuffer;
     private final RingBufferSpy throttleBuffer;
+    private final SimpleDateFormat timeFormatter;
     private final Logger out;
     private final boolean verbose;
 
@@ -62,6 +59,7 @@ public final class LoggableStream implements AutoCloseable
     {
         this.streamFormat = String.format("[%s -> %s]\t[0x%%016x] %%s\n", sender, receiver);
         this.throttleFormat = String.format("[%s <- %s]\t[0x%%016x] %%s\n", sender, receiver);
+        this.timeFormatter = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss.SSS");
 
         this.layout = layout;
         this.streamsBuffer = layout.streamsBuffer();
@@ -119,10 +117,17 @@ public final class LoggableStream implements AutoCloseable
         final long correlationId = begin.correlationId();
         final long authorization = begin.authorization();
 
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
         OctetsFW extension = begin.extension();
 
-        out.printf(streamFormat, streamId,
-                   format("BEGIN \"%s\" [0x%016x] [0x%016x] [0x%016x]", sourceName, sourceRef, correlationId, authorization));
+        String beginFormat = String.format(streamFormat,
+                streamId,
+                format("BEGIN \"%s\" [0x%016x] [0x%016x] [0x%016x]",
+                        sourceName,
+                        sourceRef,
+                        correlationId,
+                        authorization));
+        out.printf("%s %s", currentTimeStr, beginFormat);
 
         if (verbose && sourceName.startsWith("http"))
         {
@@ -163,7 +168,11 @@ public final class LoggableStream implements AutoCloseable
         final int padding = data.padding();
         final long authorization = data.authorization();
 
-        out.printf(format(streamFormat, streamId, format("DATA [%d] [%d] [0x%016x]", length, padding, authorization)));
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
+        String dataFormat = String.format(streamFormat,
+                streamId,
+                format("DATA [%d] [%d] [0x%016x]", length, padding, authorization));
+        out.printf("%s %s", currentTimeStr, dataFormat);
     }
 
     private void handleEnd(
@@ -172,7 +181,9 @@ public final class LoggableStream implements AutoCloseable
         final long streamId = end.streamId();
         final long authorization = end.authorization();
 
-        out.printf(format(streamFormat, streamId, format("END [0x%016x]", authorization)));
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
+        String endFormat = String.format(streamFormat, streamId, format("END [0x%016x]", authorization));
+        out.printf("%s %s", currentTimeStr, endFormat);
     }
 
     private void handleAbort(
@@ -181,7 +192,9 @@ public final class LoggableStream implements AutoCloseable
         final long streamId = abort.streamId();
         final long authorization = abort.authorization();
 
-        out.printf(format(streamFormat, streamId, format("ABORT [0x%016x]", authorization)));
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
+        String abortFormat = String.format(streamFormat, streamId, format("ABORT [0x%016x]", authorization));
+        out.printf("%s %s", currentTimeStr, abortFormat);
     }
 
     private void handleThrottle(
@@ -207,8 +220,9 @@ public final class LoggableStream implements AutoCloseable
         final ResetFW reset)
     {
         final long streamId = reset.streamId();
-
-        out.printf(format(throttleFormat, streamId, "RESET"));
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
+        String resetFormat = String.format(throttleFormat, streamId, "RESET");
+        out.printf("%s %s", currentTimeStr, resetFormat);
     }
 
     private void handleWindow(
@@ -219,6 +233,8 @@ public final class LoggableStream implements AutoCloseable
         final int padding = window.padding();
         final long groupId = window.groupId();
 
-        out.printf(format(throttleFormat, streamId, format("WINDOW [%d] [%d] [%d]", credit, padding, groupId)));
+        String currentTimeStr = String.format("[%s]", timeFormatter.format(System.currentTimeMillis()));
+        String windowFormat = String.format(throttleFormat, streamId, format("WINDOW [%d] [%d] [%d]", credit, padding, groupId));
+        out.printf("%s %s", currentTimeStr, windowFormat);
     }
 }
